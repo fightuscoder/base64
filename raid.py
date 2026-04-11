@@ -8,6 +8,7 @@ import datetime
 init()
 
 BUILD = "v1.20"
+news = "roblox set roblox group ratelimit to 300 ranked"
 
 def pause():
     os.system("pause")
@@ -203,6 +204,7 @@ async def main():
     print(Fore.CYAN + banner)
     print(Fore.WHITE + "by " + Fore.RED + "syphoncore" + Fore.WHITE + " company")
     print(Fore.WHITE + f"Build: {BUILD}")
+    print(Fore.WHITE + news)
     print("\n")
 
     cookie = input(Fore.CYAN + "(ARXAN)" + Fore.WHITE + " | Input Roblox Cookie >>> ")
