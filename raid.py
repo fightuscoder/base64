@@ -7,8 +7,8 @@ import base64
 import datetime
 init()
 
-BUILD = "v1.21"
-news = "Updated: Batch ranking (300 per cycle) to prevent rapid ratelimits."
+BUILD = "v1.22"
+news = "Updated: Batch ranking (300 per cycle) now only counts successful/attempted ranks, ignores skips."
 
 def pause():
     os.system("pause")
@@ -17,9 +17,6 @@ os.system("title Arxan :: Roblox Group Nuker")
 
 # KEY SYSTEM
 #########################################################################################################################
-
-# Unencrypted URL: https://raw.githubusercontent.com/fightuscoder/base64/refs/heads/main/key.txt
-# Developer Key: ravensoftware
 
 ENC_URL = "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2ZpZ2h0dXNjb2Rlci9iYXNlNjQvcmVmcy9oZWFkcy9tYWluL2tleS50eHQ="
 def get_url():
@@ -58,13 +55,13 @@ async def check_key():
 RATE_LIMIT = 45
 ERROR_LIMIT = 100
 
-banner =  '''
- █████  ██████  ██   ██  █████  ███    ██ 
+banner = '''
+ █████  ██████  ██  ██  █████  ███    ██ 
 ██   ██ ██   ██  ██ ██  ██   ██ ████   ██ 
-███████ ██████    ███   ███████ ██ ██  ██ 
+███████ ██████   ███   ███████ ██ ██  ██ 
 ██   ██ ██   ██  ██ ██  ██   ██ ██  ██ ██ 
-██   ██ ██   ██ ██   ██ ██   ██ ██   ████ 
-                                        '''  
+██   ██ ██   ██ ██  ██ ██   ██ ██   ████ 
+                                         '''  
 
 #############################################################################
 async def get_csrf(session):
@@ -96,7 +93,7 @@ async def get_role_id(session, group, name):
 
 async def change_role(session, user, group, bot_rank, role_id, role_name, counters):
     if counters['errors'] >= ERROR_LIMIT:
-        return
+        return False
 
     uid = user['user']['userId']
     uname = user['user']['username']
@@ -104,10 +101,10 @@ async def change_role(session, user, group, bot_rank, role_id, role_name, counte
 
     if urank >= bot_rank:
         print(Fore.CYAN + "(ARXAN)" + Fore.YELLOW + " [SKIP]" + Fore.WHITE + f" | Skipping {uname} due to same or higher rank.")
-        return
+        return False
 
     if user['role']['id'] == role_id:
-        return
+        return False
 
     while True:
         async with session.patch(f'https://groups.roblox.com/v1/groups/{group}/users/{uid}', json={'roleId': role_id}) as r:
@@ -124,16 +121,16 @@ async def change_role(session, user, group, bot_rank, role_id, role_name, counte
 
             if r.status == 401 or r.status == 403:
                 print(Fore.CYAN + "(ARXAN)" + Fore.RED + " [FAIL]" + Fore.WHITE + f" | Cannot rank {uname}, most likely no access.")
-                return
+                return True
 
             if r.status >= 400:
                 counters['errors'] += 1
                 print(Fore.CYAN + "(ARXAN)" + Fore.RED + " [FAIL]" + Fore.WHITE + f" | HTTP error {r.status} on {uname}")
-                return
+                return True
 
             counters['success'] += 1
             print(Fore.CYAN + "(ARXAN)" + Fore.GREEN + " [PASS]" + Fore.WHITE + f" | Ranked {uname} to {role_name}")
-            return
+            return True
 
 ####################################################################################
 
@@ -220,14 +217,17 @@ async def main():
                         change_role(session, u, group, bot_rank, target_role, rank_name, counters)
                     ))
                 
-                await asyncio.gather(*tasks)
+                # We collect results to see how many were actually ranked (True) vs skipped (False)
+                results = await asyncio.gather(*tasks)
                 
-                batch_counter += len(users_on_page)
+                # Only add to batch_counter if change_role returned True
+                batch_counter += sum(1 for x in results if x is True)
+                
                 cursor = js.get('nextPageCursor')
 
-                # Check if we hit the 300 limit
-                if cursor and batch_counter >= 300:
-                    print(Fore.CYAN + "(ARXAN)" + Fore.YELLOW + " [BATCH]" + Fore.WHITE + f" | 300 users processed. Respecting ratelimit for {RATE_LIMIT}s...")
+                # Check if we hit the 300 limit based ONLY on ranking actions
+                if batch_counter >= 300:
+                    print(Fore.CYAN + "(ARXAN)" + Fore.YELLOW + " [BATCH]" + Fore.WHITE + f" | {batch_counter} users ranked. Resting for {RATE_LIMIT}s to prevent ratelimit...")
                     await asyncio.sleep(RATE_LIMIT)
                     batch_counter = 0 # Reset batch tracker
 
