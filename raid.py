@@ -8,7 +8,7 @@ import datetime
 init()
 
 BUILD = "v1.22"
-news = "Updated: Batch ranking (300 per cycle) now only counts successful/attempted ranks, ignores skips."
+news = "should be faster when loading all users"
 
 def pause():
     os.system("pause")
