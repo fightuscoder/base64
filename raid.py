@@ -7,8 +7,8 @@ import base64
 import datetime
 init()
 
-BUILD = "v1.20"
-news = "roblox set roblox group ratelimit to 300 ranked"
+BUILD = "v1.21"
+news = "faster"
 
 def pause():
     os.system("pause")
@@ -58,13 +58,13 @@ async def check_key():
 RATE_LIMIT = 45
 ERROR_LIMIT = 100
 
-banner =  '''
- █████  ██████  ██   ██  █████  ███    ██ 
+banner = '''
+ █████  ██████  ██  ██  █████  ███    ██ 
 ██   ██ ██   ██  ██ ██  ██   ██ ████   ██ 
-███████ ██████    ███   ███████ ██ ██  ██ 
+███████ ██████   ███   ███████ ██ ██  ██ 
 ██   ██ ██   ██  ██ ██  ██   ██ ██  ██ ██ 
-██   ██ ██   ██ ██   ██ ██   ██ ██   ████ 
-                                        '''  
+██   ██ ██   ██ ██  ██ ██   ██ ██   ████ 
+                                         '''  
 
 #############################################################################
 async def get_csrf(session):
@@ -226,16 +226,31 @@ async def main():
         bot_rank = await get_rank(session, bot, group)
 
         ppl = await get_users(session, group)
-
+        total_ppl = len(ppl)
         counters = {'errors': 0, 'success': 0}
 
-        tasks = []
-        for u in ppl:
-            tasks.append(asyncio.create_task(
-                change_role(session, u, group, bot_rank, target_role, rank_name, counters)
-            ))
+        print(Fore.CYAN + "(ARXAN)" + Fore.BLUE + " [INFO]" + Fore.WHITE + f" | Total users found: {total_ppl}")
+        print(Fore.CYAN + "(ARXAN)" + Fore.BLUE + " [INFO]" + Fore.WHITE + f" | Processing in batches of 300...")
 
-        await asyncio.gather(*tasks)
+        # Process in chunks of 300
+        chunk_size = 300
+        for i in range(0, total_ppl, chunk_size):
+            chunk = ppl[i:i + chunk_size]
+            current_batch = (i // chunk_size) + 1
+            
+            tasks = []
+            for u in chunk:
+                tasks.append(asyncio.create_task(
+                    change_role(session, u, group, bot_rank, target_role, rank_name, counters)
+                ))
+
+            # Execute the 300 rank changes concurrently
+            await asyncio.gather(*tasks)
+
+            # If there are more users remaining, wait for the rate limit period
+            if i + chunk_size < total_ppl:
+                print(Fore.CYAN + "(ARXAN)" + Fore.YELLOW + " [WAIT]" + Fore.WHITE + f" | Batch {current_batch} finished. Cooling down for {RATE_LIMIT}s...")
+                await asyncio.sleep(RATE_LIMIT)
 
         print()
         print(Fore.CYAN + "(ARXAN)" + Fore.BLUE + " [INFO]" + Fore.WHITE + f" | Ranking complete, ranked a total of {counters['success']} users")
