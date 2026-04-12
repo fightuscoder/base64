@@ -8,7 +8,7 @@ import datetime
 init()
 
 BUILD = "v1.21"
-news = "faster"
+news = "Updated: Batch ranking (300 per cycle) to prevent rapid ratelimits."
 
 def pause():
     os.system("pause")
@@ -58,13 +58,13 @@ async def check_key():
 RATE_LIMIT = 45
 ERROR_LIMIT = 100
 
-banner = '''
- █████  ██████  ██  ██  █████  ███    ██ 
+banner =  '''
+ █████  ██████  ██   ██  █████  ███    ██ 
 ██   ██ ██   ██  ██ ██  ██   ██ ████   ██ 
-███████ ██████   ███   ███████ ██ ██  ██ 
+███████ ██████    ███   ███████ ██ ██  ██ 
 ██   ██ ██   ██  ██ ██  ██   ██ ██  ██ ██ 
-██   ██ ██   ██ ██  ██ ██   ██ ██   ████ 
-                                         '''  
+██   ██ ██   ██ ██   ██ ██   ██ ██   ████ 
+                                        '''  
 
 #############################################################################
 async def get_csrf(session):
@@ -72,40 +72,12 @@ async def get_csrf(session):
         if r.status == 403:
             return r.headers.get('x-csrf-token')
         raise Exception(Fore.CYAN + "(ARXAN)" + Fore.RED + " [FAIL]" + Fore.WHITE + " | Cannot get CSRF token")
-####################################################################################
-async def get_users(session, group):
-    dudes = []
-    cursor = None
-    limit = 100
-
-    print(Fore.CYAN + "(ARXAN)" + Fore.BLUE + " [INFO]" + Fore.WHITE + " | CSRF Token acquired.")
-    print(Fore.CYAN + "(ARXAN)" + Fore.LIGHTMAGENTA_EX + " [SCANNER]" + Fore.WHITE + " | Scanning for users, this may take a while...")
-
-    while True:
-        params = {'limit': str(limit)}
-        if cursor is not None:
-            params['cursor'] = cursor
-
-        async with session.get(f'https://groups.roblox.com/v1/groups/{group}/users', params=params) as r:
-            js = await r.json()
-            for user in js['data']:
-                dudes.append(user)
-
-            cursor = js.get('nextPageCursor')
-            if not cursor:
-                break
-
-        await asyncio.sleep(0)
-  
-    return dudes
-
-
 
 async def get_bot(session):
     async with session.get('https://users.roblox.com/v1/users/authenticated') as r:
         js = await r.json()
         return js['id']
-####################################################################################
+
 async def get_rank(session, uid, group):
     async with session.get(f'https://groups.roblox.com/v1/users/{uid}/groups/roles') as r:
         js = await r.json()
@@ -113,7 +85,7 @@ async def get_rank(session, uid, group):
             if g['group']['id'] == group:
                 return g['role']['rank']
     return None
-####################################################################################
+
 async def get_role_id(session, group, name):
     async with session.get(f'https://groups.roblox.com/v1/groups/{group}/roles') as r:
         js = await r.json()
@@ -121,7 +93,7 @@ async def get_role_id(session, group, name):
             if x['name'].lower() == name.lower():
                 return x['id']
     raise Exception(Fore.CYAN + "(ARXAN)" + Fore.RED + " [FAIL]" + Fore.WHITE + " | Role not found")
-####################################################################################
+
 async def change_role(session, user, group, bot_rank, role_id, role_name, counters):
     if counters['errors'] >= ERROR_LIMIT:
         return
@@ -145,7 +117,6 @@ async def change_role(session, user, group, bot_rank, role_id, role_name, counte
                 await asyncio.sleep(RATE_LIMIT)
                 continue
 
-            # retries on error 5xx
             if 500 <= r.status < 600:
                 print(Fore.CYAN + "(ARXAN)" + Fore.YELLOW + " [WARN]" + Fore.WHITE + f" | Server error {r.status} on {uname}, retrying...")
                 await asyncio.sleep(2)
@@ -158,16 +129,14 @@ async def change_role(session, user, group, bot_rank, role_id, role_name, counte
             if r.status >= 400:
                 counters['errors'] += 1
                 print(Fore.CYAN + "(ARXAN)" + Fore.RED + " [FAIL]" + Fore.WHITE + f" | HTTP error {r.status} on {uname}")
-                if counters['errors'] >= ERROR_LIMIT:
-                    return
                 return
 
             counters['success'] += 1
             print(Fore.CYAN + "(ARXAN)" + Fore.GREEN + " [PASS]" + Fore.WHITE + f" | Ranked {uname} to {role_name}")
             return
 
-
 ####################################################################################
+
 async def main():
     await check_key()
     print(Fore.CYAN + "(ARXAN)" + Fore.GREEN + " [PASS]" + Fore.WHITE + " | Valid key passed.")
@@ -188,7 +157,6 @@ async def main():
             times.append((t2 - t1) * 1000)
 
         avg = sum(times) / len(times)
-
         print(Fore.CYAN + "(ARXAN)" + Fore.GREEN + " [PASS]" + Fore.WHITE + " | Can connect to Roblox: " + Fore.GREEN + "PASS")
         print(Fore.CYAN + "(ARXAN)" + Fore.BLUE + " [INFO]" + Fore.WHITE + f" | Roblox API average response time: {avg:.0f}ms")
 
@@ -225,36 +193,51 @@ async def main():
         bot = await get_bot(session)
         bot_rank = await get_rank(session, bot, group)
 
-        ppl = await get_users(session, group)
-        total_ppl = len(ppl)
         counters = {'errors': 0, 'success': 0}
+        cursor = None
+        batch_counter = 0
+        
+        print(Fore.CYAN + "(ARXAN)" + Fore.LIGHTMAGENTA_EX + " [SCANNER]" + Fore.WHITE + " | Starting batched ranking process...")
 
-        print(Fore.CYAN + "(ARXAN)" + Fore.BLUE + " [INFO]" + Fore.WHITE + f" | Total users found: {total_ppl}")
-        print(Fore.CYAN + "(ARXAN)" + Fore.BLUE + " [INFO]" + Fore.WHITE + f" | Processing in batches of 300...")
+        while True:
+            params = {'limit': '100'}
+            if cursor:
+                params['cursor'] = cursor
 
-        # Process in chunks of 300
-        chunk_size = 300
-        for i in range(0, total_ppl, chunk_size):
-            chunk = ppl[i:i + chunk_size]
-            current_batch = (i // chunk_size) + 1
-            
-            tasks = []
-            for u in chunk:
-                tasks.append(asyncio.create_task(
-                    change_role(session, u, group, bot_rank, target_role, rank_name, counters)
-                ))
+            async with session.get(f'https://groups.roblox.com/v1/groups/{group}/users', params=params) as r:
+                if r.status != 200:
+                    print(Fore.RED + " [!] Failed to fetch user page, retrying...")
+                    await asyncio.sleep(5)
+                    continue
+                
+                js = await r.json()
+                users_on_page = js['data']
+                
+                # Rank current page users
+                tasks = []
+                for u in users_on_page:
+                    tasks.append(asyncio.create_task(
+                        change_role(session, u, group, bot_rank, target_role, rank_name, counters)
+                    ))
+                
+                await asyncio.gather(*tasks)
+                
+                batch_counter += len(users_on_page)
+                cursor = js.get('nextPageCursor')
 
-            # Execute the 300 rank changes concurrently
-            await asyncio.gather(*tasks)
+                # Check if we hit the 300 limit
+                if cursor and batch_counter >= 300:
+                    print(Fore.CYAN + "(ARXAN)" + Fore.YELLOW + " [BATCH]" + Fore.WHITE + f" | 300 users processed. Respecting ratelimit for {RATE_LIMIT}s...")
+                    await asyncio.sleep(RATE_LIMIT)
+                    batch_counter = 0 # Reset batch tracker
 
-            # If there are more users remaining, wait for the rate limit period
-            if i + chunk_size < total_ppl:
-                print(Fore.CYAN + "(ARXAN)" + Fore.YELLOW + " [WAIT]" + Fore.WHITE + f" | Batch {current_batch} finished. Cooling down for {RATE_LIMIT}s...")
-                await asyncio.sleep(RATE_LIMIT)
+                if not cursor or counters['errors'] >= ERROR_LIMIT:
+                    break
 
         print()
         print(Fore.CYAN + "(ARXAN)" + Fore.BLUE + " [INFO]" + Fore.WHITE + f" | Ranking complete, ranked a total of {counters['success']} users")
         print(Fore.CYAN + "(ARXAN)" + Fore.BLUE + " [INFO]" + Fore.WHITE + f" | Total Errors: {counters['errors']}")
         pause()
-####################################################################################
-asyncio.run(main())
+
+if __name__ == "__main__":
+    asyncio.run(main())
