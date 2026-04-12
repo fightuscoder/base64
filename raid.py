@@ -169,7 +169,7 @@ async def main():
     print(Fore.CYAN + banner)
     print(Fore.WHITE + "by " + Fore.RED + "syphoncore" + Fore.WHITE + " company")
     print(Fore.WHITE + f"Build: {BUILD}")
-    print(Fore.WHITE + news)
+    print(Fore.WHITE + f"News: {news}")
     print("\n")
 
     cookie = input(Fore.CYAN + "(ARXAN)" + Fore.WHITE + " | Input Roblox Cookie >>> ")
